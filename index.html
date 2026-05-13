@@ -19,7 +19,7 @@
             font-family: 'Segoe UI', sans-serif;
             display: flex; flex-direction: column; align-items: center;
             min-height: 100vh; margin: 0; padding-top: 15px;
-            color: var(--text-color); transition: background 0.3s;
+            color: var(--text-color);
         }
 
         /* Botões Canto Superior Esquerdo */
@@ -38,12 +38,12 @@
         
         #progressBar { height: 100%; width: 0%; background: var(--soft-green); transition: width 0.5s; }
 
-        /* Contadores de Erros Específicos */
+        /* Contadores de Erros */
         .error-counters {
             display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
-            width: 85%; max-width: 450px; margin-top: 10px; font-size: 0.85rem; text-align: center;
+            width: 85%; max-width: 450px; margin-top: 10px; font-size: 0.8rem; text-align: center;
         }
-        .error-item { background: #fff; padding: 5px; border-radius: 5px; border-bottom: 3px solid var(--soft-red); }
+        .error-item { background: #fff; padding: 5px; border-radius: 5px; border: 1px solid #ddd; }
 
         .stats-box {
             background: white; border-radius: 12px; padding: 15px;
@@ -58,34 +58,33 @@
             cursor: pointer; transition: 0.2s; width: 140px;
         }
         .vote-card:hover { transform: scale(1.05); }
-        .vote-card img { width: 60px; }
+        .vote-card img { width: 60px; height: 60px; object-fit: contain; }
 
         /* MODAIS */
         .modal { 
             display: none; position: fixed; top: 50%; left: 50%; 
             transform: translate(-50%, -50%); background: white; 
             padding: 25px; border-radius: 15px; z-index: 10000;
-            box-shadow: 0 0 40px rgba(0,0,0,0.4); width: 350px; color: #333;
-            max-height: 90vh; overflow-y: auto;
+            box-shadow: 0 0 40px rgba(0,0,0,0.4); width: 320px;
         }
 
         #adminPanel { background: rgba(0,0,0,0.95); color: var(--admin-green); border: 2px solid var(--admin-green); }
         
-        input, select { width: 100%; padding: 8px; margin: 8px 0; border-radius: 5px; border: 1px solid #ccc; box-sizing: border-box; }
+        input, select { width: 100%; padding: 10px; margin: 8px 0; border-radius: 5px; border: 1px solid #ccc; box-sizing: border-box; }
 
         .btn-main {
             background: #007bff; color: white; border: none; 
-            padding: 10px; border-radius: 5px; cursor: pointer; width: 100%;
+            padding: 12px; border-radius: 5px; cursor: pointer; width: 100%;
             font-weight: bold; margin-top: 10px;
         }
 
-        /* Canvas de Planejamento */
-        #canvasContainer { position: relative; width: 300px; height: 300px; border: 1px solid #000; margin: 10px 0; }
-        #drawingCanvas { position: absolute; top: 0; left: 0; cursor: crosshair; }
+        .category-grid { display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: 15px; }
+        .btn-category { padding: 10px; border: 1px solid #ddd; border-radius: 5px; cursor: pointer; background: #f8f9fa; font-weight: bold; }
+        .btn-category:hover { background: #e2e6ea; }
 
-        .category-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
-        .btn-category { padding: 10px; border: none; border-radius: 5px; cursor: pointer; background: #eee; font-weight: bold; }
-        .btn-category:hover { background: #ddd; }
+        /* Canvas */
+        #canvasContainer { position: relative; width: 300px; height: 300px; border: 1px solid #000; margin: 10px auto; background: #fff; }
+        #drawingCanvas { position: absolute; top: 0; left: 0; cursor: crosshair; }
     </style>
 </head>
 <body>
@@ -98,10 +97,10 @@
     <audio id="soundAcerto" src="acerto.mp3"></audio>
     <audio id="soundErro" src="erro.mp3"></audio>
 
-    <h1>MESA - CONTROLE DE MISSÕES</h1>
+    <h1 id="siteTitle">MESA - CONTROLE DE MISSÕES</h1>
     
     <div style="display:flex; gap:10px;">
-        <button onclick="undo()" style="background:#ffc107; border:none; padding:8px; border-radius:5px; cursor:pointer; font-weight:bold;">↩️ DESFAZER ÚLTIMO</button>
+        <button onclick="undo()" style="background:#ffc107; border:none; padding:8px; border-radius:5px; cursor:pointer; font-weight:bold;">↩️ DESFAZER</button>
         <button onclick="abrirPlanejamento()" style="background:#17a2b8; color:white; border:none; padding:8px; border-radius:5px; cursor:pointer; font-weight:bold;">📝 PLANEJAMENTO</button>
     </div>
 
@@ -119,7 +118,7 @@
     </div>
 
     <div class="stats-box">
-        <div style="font-size: 1.2rem; font-weight: bold;">✅ SUCESSO: <span id="s-sim">0</span> | ❌ ERRO: <span id="s-nao">0</span></div>
+        <div style="font-size: 1.1rem; font-weight: bold;">✅ SUCESSO: <span id="s-sim">0</span> | ❌ ERRO: <span id="s-nao">0</span></div>
     </div>
 
     <div class="voting-area">
@@ -132,168 +131,155 @@
     </div>
 
     <div id="modalInfo" class="modal">
-        <h3>Especificações da Soltagem</h3>
+        <h3 style="margin-top:0;">Especificações da Soltagem</h3>
         <label>Missão:</label>
         <select id="infoMissao"></select>
         <label>Duração (minutos):</label>
-        <input type="number" id="infoTempo" placeholder="Ex: 15">
+        <input type="number" id="infoTempo" placeholder="Ex: 10">
         <label>Data:</label>
         <input type="date" id="infoData">
-        <button id="btnSalvarSucesso" class="btn-main" onclick="confirmarVoto()">SALVAR SUCESSO</button>
-        <button id="btnIrCategorias" class="btn-main" style="background:#fd7e14; display:none;" onclick="abrirMenuCategorias()">DEFINIR MOTIVO DO ERRO</button>
+        
+        <div id="areaBotoesAcao">
+            </div>
         <button onclick="fecharModais()" style="width:100%; margin-top:10px; background:none; border:none; color:red; cursor:pointer;">Cancelar</button>
     </div>
 
     <div id="modalCategorias" class="modal">
-        <img src="duvida.png" style="width:50px; display:block; margin: 0 auto;">
-        <h3 style="text-align:center;">Motivo do Erro</h3>
-        <p style="text-align:center; font-size: 0.9rem;">Tempo gasto: <span id="displayTempoErro">0</span> min</p>
+        <div style="text-align:center;">
+            <img src="duvida.png" style="width:60px; margin-bottom:10px;">
+            <h3 style="margin:0;">Motivo do Erro</h3>
+            <p style="font-size:0.9rem; color:#666;">Tempo registrado: <span id="displayTempoErro">0</span> min</p>
+        </div>
         <div class="category-grid">
-            <button class="btn-category" onclick="finalizarErro('Mesa')">Mesa</button>
-            <button class="btn-category" onclick="finalizarErro('Montagem')">Montagem</button>
-            <button class="btn-category" onclick="finalizarErro('Programação')">Programação</button>
-            <button class="btn-category" onclick="finalizarErro('Variação')">Variação</button>
-            <button class="btn-category" onclick="finalizarErro('Soltagem')">Soltagem</button>
+            <button class="btn-category" onclick="salvarRegistroFinal('Mesa')">Mesa</button>
+            <button class="btn-category" onclick="salvarRegistroFinal('Montagem')">Montagem</button>
+            <button class="btn-category" onclick="salvarRegistroFinal('Programação')">Programação</button>
+            <button class="btn-category" onclick="salvarRegistroFinal('Variação')">Variação</button>
+            <button class="btn-category" onclick="salvarRegistroFinal('Soltagem')">Soltagem</button>
         </div>
     </div>
 
-    <div id="modalPlanejamento" class="modal" style="width:350px;">
-        <h3>Planejamento</h3>
+    <div id="modalPlanejamento" class="modal" style="width:340px;">
+        <h3 style="margin-top:0;">Planejamento</h3>
         <div id="canvasContainer">
-            <img src="mesa.png" style="width:300px; height:300px; pointer-events:none;">
+            <img src="mesa.png" style="width:300px; height:300px; position:absolute;">
             <canvas id="drawingCanvas" width="300" height="300"></canvas>
         </div>
-        <button class="btn-main" onclick="limparDesenho()" style="background:#6c757d;">Limpar Desenho</button>
+        <button class="btn-main" onclick="limparDesenho()" style="background:#6c757d;">Limpar</button>
         <button class="btn-main" onclick="fecharModais()">Fechar</button>
     </div>
 
-    <div id="modalLogs" class="modal" style="width:90%; max-width:500px;">
+    <div id="modalLogs" class="modal" style="width:90%; max-width:400px;">
         <h3>Registros Atuais</h3>
-        <div id="logsLista" style="font-size:0.8rem; border:1px solid #eee; padding:10px; background:#f9f9f9; max-height:300px; overflow-y:auto;"></div>
+        <div id="logsLista" style="font-size:0.8rem; border:1px solid #ddd; padding:10px; background:#fff; max-height:250px; overflow-y:auto; border-radius:5px;"></div>
         <button class="btn-main" onclick="fecharModais()">Fechar</button>
     </div>
 
     <div id="modalDownload" class="modal">
-        <h3>Baixar Registros</h3>
+        <h3>Baixar Excel</h3>
         <input type="date" id="downloadData">
-        <button class="btn-main" onclick="gerarExcel()">BAIXAR EXCEL (.XLSX)</button>
-        <button onclick="fecharModais()" style="border:none; background:none; color:red; cursor:pointer; width:100%; margin-top:10px;">Fechar</button>
+        <button class="btn-main" onclick="gerarExcel()">BAIXAR (.XLSX)</button>
+        <button onclick="fecharModais()" style="width:100%; border:none; background:none; color:red; cursor:pointer; margin-top:10px;">Fechar</button>
     </div>
 
     <div id="adminPanel" class="modal">
-        <button onclick="fecharModais()" style="float:right; background:red; color:white; border:none;">X</button>
+        <button onclick="fecharModais()" style="float:right; background:red; color:white; border:none; cursor:pointer;">X</button>
         <h3>PAINEL DE ADMIN</h3>
         <label>Título:</label>
-        <input type="text" id="newTitleInput" oninput="changeTitle(this.value)" style="background:#111; color:var(--admin-green);">
-        <label>Cor Fundo:</label>
-        <input type="color" oninput="changeBgColor(this.value)">
-        <button onclick="resetarTudo()" class="btn-main" style="background:red;">LIMPAR TUDO (RESET)</button>
+        <input type="text" id="newTitleInput" oninput="mudarTitulo(this.value)" style="background:#222; color:#0f0;">
+        <label>Cor de Fundo:</label>
+        <input type="color" oninput="mudarCorFundo(this.value)">
+        <button onclick="resetTotal()" class="btn-main" style="background:red;">APAGAR TUDO</button>
     </div>
 
     <script>
-        let storage = JSON.parse(localStorage.getItem('mesa_v5')) || { 
-            sim: 0, nao: 0, titulo: "MESA - CONTROLE DE MISSÕES", corFundo: "#f0f0f0", 
-            registros: [], 
-            erros: { Mesa: 0, Montagem: 0, Programação: 0, Variação: 0, Soltagem: 0 } 
+        // Inicialização de Dados
+        let db = JSON.parse(localStorage.getItem('mesa_v6')) || {
+            sim: 0, nao: 0, titulo: "MESA - CONTROLE DE MISSÕES", cor: "#f0f0f0",
+            registros: [],
+            erros: { Mesa:0, Montagem:0, Programação:0, Variação:0, Soltagem:0 }
         };
-        
-        let votoTemporario = null;
-        let inputBuffer = "";
+
+        let votoPendente = null;
+        let bufferTeclado = "";
 
         // Popular Missões
-        const selectMissao = document.getElementById('infoMissao');
+        const combo = document.getElementById('infoMissao');
         for(let i=1; i<=15; i++) {
-            let m = "M" + (i < 10 ? "0"+i : i);
-            selectMissao.innerHTML += <option value="${m}">${m}</option>;
+            let val = "M" + (i < 10 ? "0"+i : i);
+            combo.innerHTML += <option value="${val}">${val}</option>;
         }
 
-        function atualizar() {
-            document.getElementById('s-sim').innerText = storage.sim;
-            document.getElementById('s-nao').innerText = storage.nao;
-            document.getElementById('mainDisplayTitle')?.innerText ? (document.getElementById('mainDisplayTitle').innerText = storage.titulo) : null;
-            document.body.style.backgroundColor = storage.corFundo;
+        function atualizarUI() {
+            document.getElementById('s-sim').innerText = db.sim;
+            document.getElementById('s-nao').innerText = db.nao;
+            document.getElementById('siteTitle').innerText = db.titulo;
+            document.body.style.backgroundColor = db.cor;
 
-            // Atualizar contadores de erro
-            for (let cat in storage.erros) {
-                const el = document.getElementById('c-' + cat.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
-                if(el) el.innerText = storage.erros[cat];
-            }
+            // Contadores
+            document.getElementById('c-mesa').innerText = db.erros.Mesa;
+            document.getElementById('c-montagem').innerText = db.erros.Montagem;
+            document.getElementById('c-programacao').innerText = db.erros.Programação;
+            document.getElementById('c-variacao').innerText = db.erros.Variação;
+            document.getElementById('c-soltagem').innerText = db.erros.Soltagem;
 
-            let total = storage.sim + storage.nao;
-            let perc = total === 0 ? 0 : Math.round((storage.sim / total) * 100);
-            document.getElementById('progressBar').style.width = perc + "%";
-            document.getElementById('percentText').innerText = perc + "%";
-            localStorage.setItem('mesa_v5', JSON.stringify(storage));
-        }
-
-        function prepararVoto(sucesso) {
-            votoTemporario = sucesso;
-            document.getElementById('infoData').valueAsDate = new Date();
-            document.getElementById('modalInfo').style.display = 'block';
+            let total = db.sim + db.nao;
+            let p = total === 0 ? 0 : Math.round((db.sim / total) * 100);
+            document.getElementById('progressBar').style.width = p + "%";
+            document.getElementById('percentText').innerText = p + "%";
             
-            // Ajustar botões do menu conforme sucesso ou erro
-            if(sucesso) {
-                document.getElementById('btnSalvarSucesso').style.display = 'block';
-                document.getElementById('btnIrCategorias').style.display = 'none';
-            } else {
-                document.getElementById('btnSalvarSucesso').style.display = 'none';
-                document.getElementById('btnIrCategorias').style.display = 'block';
-            }
+            localStorage.setItem('mesa_v6', JSON.stringify(db));
         }
 
-        function abrirMenuCategorias() {
+        function prepararVoto(isCorreto) {
+            votoPendente = isCorreto;
+            document.getElementById('infoData').valueAsDate = new Date();
+            const containerBotoes = document.getElementById('areaBotoesAcao');
+            
+            if(isCorreto) {
+                containerBotoes.innerHTML = <button class="btn-main" onclick="salvarRegistroFinal('N/A')" style="background:#28a745;">CONCLUIR SUCESSO</button>;
+            } else {
+                containerBotoes.innerHTML = <button class="btn-main" onclick="irParaAlternativas()" style="background:#fd7e14;">DEFINIR MOTIVO DO ERRO</button>;
+            }
+            
+            document.getElementById('modalInfo').style.display = 'block';
+        }
+
+        function irParaAlternativas() {
             const tempo = document.getElementById('infoTempo').value;
-            if(!tempo) { alert("Preencha o tempo gasto primeiro!"); return; }
-            document.getElementById('modalInfo').style.display = 'none';
+            if(!tempo) { alert("Informe o tempo da missão!"); return; }
+            
             document.getElementById('displayTempoErro').innerText = tempo;
+            document.getElementById('modalInfo').style.display = 'none';
             document.getElementById('modalCategorias').style.display = 'block';
         }
 
-        function finalizarErro(categoria) {
+        function salvarRegistroFinal(motivo) {
             const missao = document.getElementById('infoMissao').value;
             const tempo = document.getElementById('infoTempo').value;
             const data = document.getElementById('infoData').value;
 
-            const novoRegistro = {
-                missao: missao, resultado: "ERRO", motivo: categoria, tempo: tempo + " min", data: data
+            if(!tempo || !data) { alert("Preencha todos os campos!"); return; }
+
+            const reg = {
+                data: data, missao: missao, tempo: tempo + " min",
+                resultado: votoPendente ? "SUCESSO" : "ERRO",
+                motivo: motivo
             };
 
-            storage.registros.push(novoRegistro);
-            storage.nao++;
-            storage.erros[categoria] = (storage.erros[categoria] || 0) + 1;
-            
-            document.getElementById('soundErro').play();
-            fecharModais();
-            atualizar();
-        }
-
-        function confirmarVoto() {
-            const missao = document.getElementById('infoMissao').value;
-            const tempo = document.getElementById('infoTempo').value;
-            const data = document.getElementById('infoData').value;
-
-            if(!tempo || !data) { alert("Preencha o tempo e a data!"); return; }
-
-            const novoRegistro = {
-                missao: missao, resultado: "SUCESSO", motivo: "N/A", tempo: tempo + " min", data: data
-            };
-
-            storage.registros.push(novoRegistro);
-            storage.sim++;
-            document.getElementById('soundAcerto').play();
-            confetti({ particleCount: 100, spread: 70 });
+            db.registros.push(reg);
+            if(votoPendente) {
+                db.sim++;
+                document.getElementById('soundAcerto').play();
+                confetti({ particleCount: 80, spread: 60 });
+            } else {
+                db.nao++;
+                db.erros[motivo]++;
+                document.getElementById('soundErro').play();
+            }
 
             fecharModais();
-            atualizar();
-        }
-
-        function abrirDownload() { document.getElementById('modalDownload').style.display = 'block'; }
-        
-        function abrirLogs() {
-            const lista = document.getElementById('logsLista');
-            lista.innerHTML = storage.registros.length === 0 ? "Nenhum registro." : 
-                storage.registros.map(r => [${r.data}] ${r.missao}: ${r.resultado} (${r.motivo}) - ${r.tempo}).join("<br>");
-            document.getElementById('modalLogs').style.display = 'block';
+            atualizarUI();
         }
 
         function fecharModais() {
@@ -301,64 +287,67 @@
             document.getElementById('infoTempo').value = "";
         }
 
-        function undo() {
-            let last = storage.registros.pop();
-            if(!last) return;
-            if(last.resultado === "SUCESSO") storage.sim--; 
+        function abrirLogs() {
+            const div = document.getElementById('logsLista');
+            if(db.registros.length === 0) { div.innerHTML = "Vazio."; }
             else {
-                storage.nao--;
-                if(last.motivo !== "N/A") storage.erros[last.motivo]--;
+                div.innerHTML = db.registros.map(r => 
+                    <b>${r.data}</b> - ${r.missao}: ${r.resultado} (${r.motivo})
+                ).reverse().join("<br>");
             }
-            atualizar();
+            document.getElementById('modalLogs').style.display = 'block';
         }
 
-        // Sistema de Desenho
+        function undo() {
+            let last = db.registros.pop();
+            if(!last) return;
+            if(last.resultado === "SUCESSO") db.sim--;
+            else {
+                db.nao--;
+                db.erros[last.motivo]--;
+            }
+            atualizarUI();
+        }
+
+        // Desenho no Planejamento
         const canvas = document.getElementById('drawingCanvas');
         const ctx = canvas.getContext('2d');
-        let desenhando = false;
+        let d = false;
+        canvas.onmousedown = () => d = true;
+        canvas.onmouseup = () => { d = false; ctx.beginPath(); };
+        canvas.onmousemove = (e) => {
+            if(!d) return;
+            ctx.lineWidth = 4; ctx.strokeStyle = "red"; ctx.lineCap = "round";
+            const r = canvas.getBoundingClientRect();
+            ctx.lineTo(e.clientX - r.left, e.clientY - r.top);
+            ctx.stroke(); ctx.beginPath(); ctx.moveTo(e.clientX - r.left, e.clientY - r.top);
+        };
+        function limparDesenho() { ctx.clearRect(0,0,300,300); }
+        function abrirPlanejamento() { document.getElementById('modalPlanejamento').style.display='block'; }
+        function abrirDownload() { document.getElementById('modalDownload').style.display='block'; }
 
-        canvas.addEventListener('mousedown', () => desenhando = true);
-        canvas.addEventListener('mouseup', () => { desenhando = false; ctx.beginPath(); });
-        canvas.addEventListener('mousemove', draw);
-
-        function draw(e) {
-            if(!desenhando) return;
-            ctx.lineWidth = 3;
-            ctx.lineCap = 'round';
-            ctx.strokeStyle = 'red';
-            const rect = canvas.getBoundingClientRect();
-            ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
-        }
-
-        function limparDesenho() { ctx.clearRect(0, 0, canvas.width, canvas.height); }
-        function abrirPlanejamento() { document.getElementById('modalPlanejamento').style.display = 'block'; }
-
-        // Comandos Admin
+        // Teclado Admin
         document.addEventListener('keydown', (e) => {
-            inputBuffer += e.key.toLowerCase();
-            if(inputBuffer.endsWith("paineladm0102")) document.getElementById('adminPanel').style.display = 'block';
-            if(inputBuffer.length > 25) inputBuffer = inputBuffer.substring(1);
+            bufferTeclado += e.key.toLowerCase();
+            if(bufferTeclado.endsWith("paineladm0102")) document.getElementById('adminPanel').style.display = 'block';
+            if(bufferTeclado.length > 30) bufferTeclado = bufferTeclado.substring(1);
         });
 
-        function changeTitle(v) { storage.titulo = v; atualizar(); }
-        function changeBgColor(v) { storage.corFundo = v; atualizar(); }
-        function resetarTudo() { if(confirm("APAGAR TUDO?")) { localStorage.clear(); location.reload(); } }
+        function mudarTitulo(v) { db.titulo = v; atualizarUI(); }
+        function mudarCorFundo(v) { db.cor = v; atualizarUI(); }
+        function resetTotal() { if(confirm("Limpar tudo?")) { localStorage.clear(); location.reload(); } }
 
         function gerarExcel() {
-            const dataBusca = document.getElementById('downloadData').value;
-            if(!dataBusca) { alert("Escolha uma data!"); return; }
-            const filtrados = storage.registros.filter(r => r.data === dataBusca);
-            if(filtrados.length === 0) { alert("Nenhum registro para este dia."); return; }
-            const ws = XLSX.utils.json_to_sheet(filtrados);
+            const dt = document.getElementById('downloadData').value;
+            const f = db.registros.filter(r => r.data === dt);
+            if(f.length === 0) { alert("Nada encontrado."); return; }
+            const ws = XLSX.utils.json_to_sheet(f);
             const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Registros");
-            XLSX.writeFile(wb, Mesa_Relatorio_${dataBusca}.xlsx);
+            XLSX.utils.book_append_sheet(wb, ws, "Dados");
+            XLSX.writeFile(wb, Relatorio_${dt}.xlsx);
         }
 
-        atualizar();
+        atualizarUI();
     </script>
 </body>
 </html>
