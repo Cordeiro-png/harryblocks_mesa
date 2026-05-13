@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SISTEMA DE MISSÕES - MESA</title>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.19.3/package/dist/xlsx.full.min.js"></script>
+    <style>
+        :root { 
+            --admin-green: #00ff41; 
+            --soft-red: #ff4444;
+            --soft-green: #00c851;
+            --text-color: #333;
+        }
+        
+        body {
+            background-color: #f0f0f0;
+            font-family: 'Segoe UI', sans-serif;
+            display: flex; flex-direction: column; align-items: center;
+            min-height: 100vh; margin: 0; padding-top: 15px;
+            color: var(--text-color); transition: background 0.3s;
+        }
+
+        /* Botões Canto Superior Esquerdo */
+        .top-left-controls {
+            position: absolute; top: 15px; left: 15px;
+            display: flex; flex-direction: column; gap: 10px;
+        }
+
+        h1 { font-family: "Times New Roman", serif; text-transform: uppercase; margin-bottom: 5px; }
+
+        .progress-container {
+            width: 85%; max-width: 450px; background: var(--soft-red);
+            height: 25px; border-radius: 12px; border: 2px solid #000; overflow: hidden;
+            margin-top: 20px;
+        }
+        
+        #progressBar { height: 100%; width: 0%; background: var(--soft-green); transition: width 0.5s; }
+
+        /* Contadores de Erros Específicos */
+        .error-counters {
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+            width: 85%; max-width: 450px; margin-top: 10px; font-size: 0.85rem; text-align: center;
+        }
+        .error-item { background: #fff; padding: 5px; border-radius: 5px; border-bottom: 3px solid var(--soft-red); }
+
+        .stats-box {
+            background: white; border-radius: 12px; padding: 15px;
+            width: 80%; max-width: 400px; box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            text-align: center; margin: 15px 0;
+        }
+
+        .voting-area { display: flex; gap: 20px; }
+        .vote-card {
+            background: white; padding: 15px; border-radius: 15px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1); text-align: center;
+            cursor: pointer; transition: 0.2s; width: 140px;
+        }
+        .vote-card:hover { transform: scale(1.05); }
+        .vote-card img { width: 60px; }
+
+        /* MODAIS */
+        .modal { 
+            display: none; position: fixed; top: 50%; left: 50%; 
+            transform: translate(-50%, -50%); background: white; 
+            padding: 25px; border-radius: 15px; z-index: 10000;
+            box-shadow: 0 0 40px rgba(0,0,0,0.4); width: 350px; color: #333;
+            max-height: 90vh; overflow-y: auto;
+        }
+
+        #adminPanel { background: rgba(0,0,0,0.95); color: var(--admin-green); border: 2px solid var(--admin-green); }
+        
+        input, select { width: 100%; padding: 8px; margin: 8px 0; border-radius: 5px; border: 1px solid #ccc; box-sizing: border-box; }
+
+        .btn-main {
+            background: #007bff; color: white; border: none; 
+            padding: 10px; border-radius: 5px; cursor: pointer; width: 100%;
+            font-weight: bold; margin-top: 10px;
+        }
+
+        /* Canvas de Planejamento */
+        #canvasContainer { position: relative; width: 300px; height: 300px; border: 1px solid #000; margin: 10px 0; }
+        #drawingCanvas { position: absolute; top: 0; left: 0; cursor: crosshair; }
+
+        .category-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+        .btn-category { padding: 10px; border: none; border-radius: 5px; cursor: pointer; background: #eee; font-weight: bold; }
+        .btn-category:hover { background: #ddd; }
+    </style>
+</head>
+<body>
+
+    <div class="top-left-controls">
+        <button onclick="abrirDownload()" style="background:#28a745; color:white; border:none; padding:10px; border-radius:5px; cursor:pointer; font-weight:bold;">📊 BAIXAR REGISTROS</button>
+        <button onclick="abrirLogs()" style="background:#6c757d; color:white; border:none; padding:10px; border-radius:5px; cursor:pointer; font-weight:bold;">🔍 VER REGISTROS</button>
+    </div>
+
+    <audio id="soundAcerto" src="acerto.mp3"></audio>
+    <audio id="soundErro" src="erro.mp3"></audio>
+
+    <h1>MESA - CONTROLE DE MISSÕES</h1>
+    
+    <div style="display:flex; gap:10px;">
+        <button onclick="undo()" style="background:#ffc107; border:none; padding:8px; border-radius:5px; cursor:pointer; font-weight:bold;">↩️ DESFAZER ÚLTIMO</button>
+        <button onclick="abrirPlanejamento()" style="background:#17a2b8; color:white; border:none; padding:8px; border-radius:5px; cursor:pointer; font-weight:bold;">📝 PLANEJAMENTO</button>
+    </div>
+
+    <div class="progress-container">
+        <div id="progressBar"></div>
+    </div>
+    <div style="font-weight: bold; margin: 5px 0;">TAXA DE SUCESSO: <span id="percentText">0%</span></div>
+
+    <div class="error-counters">
+        <div class="error-item">Mesa: <b id="c-mesa">0</b></div>
+        <div class="error-item">Montagem: <b id="c-montagem">0</b></div>
+        <div class="error-item">Programação: <b id="c-programacao">0</b></div>
+        <div class="error-item">Variação: <b id="c-variacao">0</b></div>
+        <div class="error-item">Soltagem: <b id="c-soltagem">0</b></div>
+    </div>
+
+    <div class="stats-box">
+        <div style="font-size: 1.2rem; font-weight: bold;">✅ SUCESSO: <span id="s-sim">0</span> | ❌ ERRO: <span id="s-nao">0</span></div>
+    </div>
+
+    <div class="voting-area">
+        <div class="vote-card" onclick="prepararVoto(true)">
+            <img src="like.png"><p>CORRETO</p>
+        </div>
+        <div class="vote-card" onclick="prepararVoto(false)">
+            <img src="6323-dislikebs.png"><p>ERRADO</p>
+        </div>
+    </div>
+
+    <div id="modalInfo" class="modal">
+        <h3>Especificações da Soltagem</h3>
+        <label>Missão:</label>
+        <select id="infoMissao"></select>
+        <label>Duração (minutos):</label>
+        <input type="number" id="infoTempo" placeholder="Ex: 15">
+        <label>Data:</label>
+        <input type="date" id="infoData">
+        <button id="btnSalvarSucesso" class="btn-main" onclick="confirmarVoto()">SALVAR SUCESSO</button>
+        <button id="btnIrCategorias" class="btn-main" style="background:#fd7e14; display:none;" onclick="abrirMenuCategorias()">DEFINIR MOTIVO DO ERRO</button>
+        <button onclick="fecharModais()" style="width:100%; margin-top:10px; background:none; border:none; color:red; cursor:pointer;">Cancelar</button>
+    </div>
+
+    <div id="modalCategorias" class="modal">
+        <img src="duvida.png" style="width:50px; display:block; margin: 0 auto;">
+        <h3 style="text-align:center;">Motivo do Erro</h3>
+        <p style="text-align:center; font-size: 0.9rem;">Tempo gasto: <span id="displayTempoErro">0</span> min</p>
+        <div class="category-grid">
+            <button class="btn-category" onclick="finalizarErro('Mesa')">Mesa</button>
+            <button class="btn-category" onclick="finalizarErro('Montagem')">Montagem</button>
+            <button class="btn-category" onclick="finalizarErro('Programação')">Programação</button>
+            <button class="btn-category" onclick="finalizarErro('Variação')">Variação</button>
+            <button class="btn-category" onclick="finalizarErro('Soltagem')">Soltagem</button>
+        </div>
+    </div>
+
+    <div id="modalPlanejamento" class="modal" style="width:350px;">
+        <h3>Planejamento</h3>
+        <div id="canvasContainer">
+            <img src="mesa.png" style="width:300px; height:300px; pointer-events:none;">
+            <canvas id="drawingCanvas" width="300" height="300"></canvas>
+        </div>
+        <button class="btn-main" onclick="limparDesenho()" style="background:#6c757d;">Limpar Desenho</button>
+        <button class="btn-main" onclick="fecharModais()">Fechar</button>
+    </div>
+
+    <div id="modalLogs" class="modal" style="width:90%; max-width:500px;">
+        <h3>Registros Atuais</h3>
+        <div id="logsLista" style="font-size:0.8rem; border:1px solid #eee; padding:10px; background:#f9f9f9; max-height:300px; overflow-y:auto;"></div>
+        <button class="btn-main" onclick="fecharModais()">Fechar</button>
+    </div>
+
+    <div id="modalDownload" class="modal">
+        <h3>Baixar Registros</h3>
+        <input type="date" id="downloadData">
+        <button class="btn-main" onclick="gerarExcel()">BAIXAR EXCEL (.XLSX)</button>
+        <button onclick="fecharModais()" style="border:none; background:none; color:red; cursor:pointer; width:100%; margin-top:10px;">Fechar</button>
+    </div>
+
+    <div id="adminPanel" class="modal">
+        <button onclick="fecharModais()" style="float:right; background:red; color:white; border:none;">X</button>
+        <h3>PAINEL DE ADMIN</h3>
+        <label>Título:</label>
+        <input type="text" id="newTitleInput" oninput="changeTitle(this.value)" style="background:#111; color:var(--admin-green);">
+        <label>Cor Fundo:</label>
+        <input type="color" oninput="changeBgColor(this.value)">
+        <button onclick="resetarTudo()" class="btn-main" style="background:red;">LIMPAR TUDO (RESET)</button>
+    </div>
+
+    <script>
+        let storage = JSON.parse(localStorage.getItem('mesa_v5')) || { 
+            sim: 0, nao: 0, titulo: "MESA - CONTROLE DE MISSÕES", corFundo: "#f0f0f0", 
+            registros: [], 
+            erros: { Mesa: 0, Montagem: 0, Programação: 0, Variação: 0, Soltagem: 0 } 
+        };
+        
+        let votoTemporario = null;
+        let inputBuffer = "";
+
+        // Popular Missões
+        const selectMissao = document.getElementById('infoMissao');
+        for(let i=1; i<=15; i++) {
+            let m = "M" + (i < 10 ? "0"+i : i);
+            selectMissao.innerHTML += <option value="${m}">${m}</option>;
+        }
+
+        function atualizar() {
+            document.getElementById('s-sim').innerText = storage.sim;
+            document.getElementById('s-nao').innerText = storage.nao;
+            document.getElementById('mainDisplayTitle')?.innerText ? (document.getElementById('mainDisplayTitle').innerText = storage.titulo) : null;
+            document.body.style.backgroundColor = storage.corFundo;
+
+            // Atualizar contadores de erro
+            for (let cat in storage.erros) {
+                const el = document.getElementById('c-' + cat.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
+                if(el) el.innerText = storage.erros[cat];
+            }
+
+            let total = storage.sim + storage.nao;
+            let perc = total === 0 ? 0 : Math.round((storage.sim / total) * 100);
+            document.getElementById('progressBar').style.width = perc + "%";
+            document.getElementById('percentText').innerText = perc + "%";
+            localStorage.setItem('mesa_v5', JSON.stringify(storage));
+        }
+
+        function prepararVoto(sucesso) {
+            votoTemporario = sucesso;
+            document.getElementById('infoData').valueAsDate = new Date();
+            document.getElementById('modalInfo').style.display = 'block';
+            
+            // Ajustar botões do menu conforme sucesso ou erro
+            if(sucesso) {
+                document.getElementById('btnSalvarSucesso').style.display = 'block';
+                document.getElementById('btnIrCategorias').style.display = 'none';
+            } else {
+                document.getElementById('btnSalvarSucesso').style.display = 'none';
+                document.getElementById('btnIrCategorias').style.display = 'block';
+            }
+        }
+
+        function abrirMenuCategorias() {
+            const tempo = document.getElementById('infoTempo').value;
+            if(!tempo) { alert("Preencha o tempo gasto primeiro!"); return; }
+            document.getElementById('modalInfo').style.display = 'none';
+            document.getElementById('displayTempoErro').innerText = tempo;
+            document.getElementById('modalCategorias').style.display = 'block';
+        }
+
+        function finalizarErro(categoria) {
+            const missao = document.getElementById('infoMissao').value;
+            const tempo = document.getElementById('infoTempo').value;
+            const data = document.getElementById('infoData').value;
+
+            const novoRegistro = {
+                missao: missao, resultado: "ERRO", motivo: categoria, tempo: tempo + " min", data: data
+            };
+
+            storage.registros.push(novoRegistro);
+            storage.nao++;
+            storage.erros[categoria] = (storage.erros[categoria] || 0) + 1;
+            
+            document.getElementById('soundErro').play();
+            fecharModais();
+            atualizar();
+        }
+
+        function confirmarVoto() {
+            const missao = document.getElementById('infoMissao').value;
+            const tempo = document.getElementById('infoTempo').value;
+            const data = document.getElementById('infoData').value;
+
+            if(!tempo || !data) { alert("Preencha o tempo e a data!"); return; }
+
+            const novoRegistro = {
+                missao: missao, resultado: "SUCESSO", motivo: "N/A", tempo: tempo + " min", data: data
+            };
+
+            storage.registros.push(novoRegistro);
+            storage.sim++;
+            document.getElementById('soundAcerto').play();
+            confetti({ particleCount: 100, spread: 70 });
+
+            fecharModais();
+            atualizar();
+        }
+
+        function abrirDownload() { document.getElementById('modalDownload').style.display = 'block'; }
+        
+        function abrirLogs() {
+            const lista = document.getElementById('logsLista');
+            lista.innerHTML = storage.registros.length === 0 ? "Nenhum registro." : 
+                storage.registros.map(r => [${r.data}] ${r.missao}: ${r.resultado} (${r.motivo}) - ${r.tempo}).join("<br>");
+            document.getElementById('modalLogs').style.display = 'block';
+        }
+
+        function fecharModais() {
+            document.querySelectorAll('.modal').forEach(m => m.style.display = 'none');
+            document.getElementById('infoTempo').value = "";
+        }
+
+        function undo() {
+            let last = storage.registros.pop();
+            if(!last) return;
+            if(last.resultado === "SUCESSO") storage.sim--; 
+            else {
+                storage.nao--;
+                if(last.motivo !== "N/A") storage.erros[last.motivo]--;
+            }
+            atualizar();
+        }
+
+        // Sistema de Desenho
+        const canvas = document.getElementById('drawingCanvas');
+        const ctx = canvas.getContext('2d');
+        let desenhando = false;
+
+        canvas.addEventListener('mousedown', () => desenhando = true);
+        canvas.addEventListener('mouseup', () => { desenhando = false; ctx.beginPath(); });
+        canvas.addEventListener('mousemove', draw);
+
+        function draw(e) {
+            if(!desenhando) return;
+            ctx.lineWidth = 3;
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = 'red';
+            const rect = canvas.getBoundingClientRect();
+            ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
+        }
+
+        function limparDesenho() { ctx.clearRect(0, 0, canvas.width, canvas.height); }
+        function abrirPlanejamento() { document.getElementById('modalPlanejamento').style.display = 'block'; }
+
+        // Comandos Admin
+        document.addEventListener('keydown', (e) => {
+            inputBuffer += e.key.toLowerCase();
+            if(inputBuffer.endsWith("paineladm0102")) document.getElementById('adminPanel').style.display = 'block';
+            if(inputBuffer.length > 25) inputBuffer = inputBuffer.substring(1);
+        });
+
+        function changeTitle(v) { storage.titulo = v; atualizar(); }
+        function changeBgColor(v) { storage.corFundo = v; atualizar(); }
+        function resetarTudo() { if(confirm("APAGAR TUDO?")) { localStorage.clear(); location.reload(); } }
+
+        function gerarExcel() {
+            const dataBusca = document.getElementById('downloadData').value;
+            if(!dataBusca) { alert("Escolha uma data!"); return; }
+            const filtrados = storage.registros.filter(r => r.data === dataBusca);
+            if(filtrados.length === 0) { alert("Nenhum registro para este dia."); return; }
+            const ws = XLSX.utils.json_to_sheet(filtrados);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Registros");
+            XLSX.writeFile(wb, Mesa_Relatorio_${dataBusca}.xlsx);
+        }
+
+        atualizar();
+    </script>
+</body>
+</html>
